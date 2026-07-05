@@ -25,5 +25,6 @@ export const isAuthorized = (...roles) => {
         if (!roles.includes(req.user.role)) {
             return next(new ErrorHandler(`Role: ${req.user.role} is not authorized to access this resource`, 403));
         }
+        next();
     };
 };

@@ -28,3 +28,12 @@ export const deleteUser = async (id) => {
     }
     return await user.deleteOne();
 };
+
+export const getAllUsers = async () => {
+  const query = {role: {$ne: "Admin" }}; // Exclude Admins
+
+  const users = await User.find(query)
+  .select('-password -resetPasswordToken -resetPasswordExpire').sort({ createdAt: -1 });
+
+  return users;
+};   
