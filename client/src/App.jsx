@@ -34,6 +34,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { ToastContainer } from "react-toastify";
 import { Loader } from "lucide-react";
 import { getUser } from "./store/slices/authSlice";
+import { getAllUsers } from "./store/slices/adminSlice";
 
 const App = () => {
 
@@ -44,7 +45,13 @@ const App = () => {
     dispatch(getUser());
   }, [dispatch]);
 
-  const protectedRoute = ({ children, allowedRoles }) => {
+  useEffect(() => {
+    if(authUser?.role === "Admin") {
+      dispatch(getAllUsers());
+    }
+  }, [authUser]);
+
+  const ProtectedRoute = ({ children, allowedRoles }) => {
     if (!authUser) {
       return <Navigate to="/login" replace />;
     }
@@ -78,9 +85,9 @@ const App = () => {
         <Route
           path="/admin"
           element={
-            <protectedRoute allowedRoles={["Admin"]}> 
-              <DashboardLayout/>
-            </protectedRoute>
+            <ProtectedRoute allowedRoles={["Admin"]}> 
+              <DashboardLayout userRole={"Admin"}/>
+            </ProtectedRoute>
           }
         >
           <Route index element={<AdminDashboard />} />
@@ -89,6 +96,25 @@ const App = () => {
           <Route path="assign-supervisor" element={<AssignSupervisor />} />
           <Route path="deadlines" element={<DeadlinesPage />} />
           <Route path="projects" element={<ProjectsPage />} />
+        </Route>
+
+
+
+        {/* Student Routes */}
+        <Route
+          path="/student"
+          element={
+            <ProtectedRoute allowedRoles={["Student"]}> 
+              <DashboardLayout userRole={"Student"}/>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<StudentDashboard />} />
+          <Route path="submit-proposal" element={<SubmitProposal />} />
+          <Route path="upload-files" element={<UploadFiles />} />
+          <Route path="supervisor" element={<SupervisorPage />} />
+          <Route path="feedback" element={<FeedbackPage />} />
+          <Route path="notification" element={<NotificationsPage />} />
         </Route>
 
 

@@ -12,7 +12,7 @@ const LoginPage = () => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    role: "student",
+    role: "Student",
   });
 
   const [errors, setErrors] = useState({});
@@ -72,7 +72,7 @@ const LoginPage = () => {
   useEffect(() => {
     if (authUser) {
       switch (formData.role) {
-        case "student":
+        case "Student":
           navigate("/student");
           break;
         case "Teacher":
@@ -113,7 +113,7 @@ const LoginPage = () => {
             <div className="div">
               <label className="label">Select Role</label>
               <select className="input" name="role" value={formData.role} onChange={handleChange}>
-                <option value="student">Student</option>
+                <option value="Student">Student</option>
                 <option value="Teacher">Teacher</option>
                 <option value="Admin">Admin</option>
               </select>
@@ -143,7 +143,7 @@ const LoginPage = () => {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                className={`input ${errors.email ? "input-error" : ""}`}
+                className={`input ${errors.password ? "input-error" : ""}`}
                 placeholder="Enter your password"
               />
               {errors.password && <p className="text-sm text-red-500 mt-1">{errors.password}</p>}
