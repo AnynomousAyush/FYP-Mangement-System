@@ -16,7 +16,7 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) =>{
         let uploadPath;
 
-        if(req.route.path.include("/upload/:projectId")){
+        if(req.route.path.includes("/upload/:projectId")){
             uploadPath = path.join(__dirname, "../uploads/projects", req.params.projectId)
         } else if(req.route.path.includes("/upload/:userId")){
              uploadPath = path.join(__dirname, "../uploads/users", req.params.userId)
@@ -79,7 +79,7 @@ const fileFilter = (req, file, cb)=>{
 
   const fileExt = path.extname(file.originalname).toLowerCase();
 
-  if(allowedTypes.includes(file.mimetype) || allowedExtension.includes(fileExt)){
+  if(allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExt)){
     cb(null, true)
   } else {
     cb(
@@ -94,7 +94,7 @@ const upload = multer({
     storage,
     fileFilter,
     limits: {
-        filesSize: 10 * 1024 * 1024,
+        fileSize: 10 * 1024 * 1024,
         files: 10,
     },
 });

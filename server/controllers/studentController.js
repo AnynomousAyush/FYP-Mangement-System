@@ -3,6 +3,11 @@ import { asyncHandler } from './../middlewares/asyncHandler.js';
 import ErrorHandler from "./../middlewares/error.js";
 import * as userServices from '../services/userServices.js';
 import * as projectServices from '../services/projectServices.js';
+import * as requestServices from '../services/requestServices.js';
+import * as notificationServices from '../services/notificationServices.js';
+import { Project } from '../models/project.js';
+import { Notification } from '../models/notification.js';
+import * as fileServices from '../services/fileServices.js';
 
 
 export const getStudentProject = asyncHandler(async (req, res, next) => {
@@ -10,28 +15,32 @@ export const getStudentProject = asyncHandler(async (req, res, next) => {
 
     const project = await projectServices.getProjectByStudentId(studentId);
 
-    if(!project){
-      return res.status(200).json({
-        success: true,
-        data: { project : null },
-        message: "No project found for this student"
-      });
+    if (!project) {
+        return res.status(200).json({
+            success: true,
+            data: { project: null },
+            message: "No project found for this student"
+        });
     }
-     res.status(200).json({
+    res.status(200).json({
         success: true,
         data: { project },
-      });
-}); 
+    });
+});
 
 
 export const submitProposal = asyncHandler(async (req, res, next) => {
-    const {title, description} = req.body; 
+    const { title, description } = req.body;
     const studentId = req.user._id;
 
     const existingProject = await projectServices.getProjectByStudentId(studentId);
 
-    if(existingProject && existingProject.status !== "rejected"){
-        return next(new ErrorHandler("You alredy have an active project. You can only submit a new proposal if the previous one was rejected.",400));
+    if (existingProject && existingProject.status !== "rejected") {
+        return next(new ErrorHandler("You alredy have an active project. You can only submit a new proposal if the previous one was rejected.", 400));
+    }
+
+    if(existingProject && existingProject.status === "rejected"){
+        await Project.findByIdAndDelete(existingProject._id);
     }
 
     const projectData = {
@@ -41,7 +50,7 @@ export const submitProposal = asyncHandler(async (req, res, next) => {
     };
     const project = await projectServices.createProject(projectData);
 
-    await User.findByIdAndUpdate(studentId, {project: project._id})
+    await User.findByIdAndUpdate(studentId, { project: project._id })
 
     res.status(201).json({
         success: true,
@@ -51,14 +60,14 @@ export const submitProposal = asyncHandler(async (req, res, next) => {
 });
 
 export const uploadFiles = asyncHandler(async (req, res, next) => {
-    const {projectId} = req.params;
+    const { projectId } = req.params;
     const studentId = req.user._id;
     const project = await projectServices.getProjectById(projectId);
 
-    if(!project || project.student.toString() !== studentId.toString()){
+    if (!project || project.student._id.toString() !== studentId.toString()) {
         return next(new ErrorHandler("Not authorized to upload files to this project", 403));
     }
-    if(!req.files || req.files.length === 0) {
+    if (!req.files || req.files.length === 0) {
         return next(new ErrorHandler("No files uploaded", 400));
     }
     const updatedProject = await projectServices.addFilesToProject(
@@ -75,23 +84,23 @@ export const uploadFiles = asyncHandler(async (req, res, next) => {
 
 export const getAvailableSupervisors = asyncHandler(
     async (req, res, next) => {
-        const supervisors = await User.find({role: "Teacher"})
-        .select("name email department experties")
-        .lean(); 
+        const supervisors = await User.find({ role: "Teacher" })
+            .select("name email department experties")
+            .lean();
 
         res.status(200).json({
             success: true,
             data: { supervisors },
-            message: "Available supervisors fetched successfully", 
+            message: "Available supervisors fetched successfully",
         })
     }
 );
 
-export const getSupervisor = asyncHandler(async(req, res, next) => {
+export const getSupervisor = asyncHandler(async (req, res, next) => {
     const studentId = req.user._id;
     const student = await User.findById(studentId).populate("supervisor", "name email department experties");
 
-    if(!student.supervisor){
+    if (!student.supervisor) {
         return res.status(200).json({
             success: true,
             data: { supervisor: null },
@@ -100,32 +109,32 @@ export const getSupervisor = asyncHandler(async(req, res, next) => {
     }
 
     res.status(200).json({
-            success: true,
-            data: { supervisor: student.supervisor },
-        });
+        success: true,
+        data: { supervisor: student.supervisor },
+    });
 });
 
-export const requestSupervisor = asyncHandler(async ( req,res, next) => {
-    const {teacherId, message} =req.body;
+export const requestSupervisor = asyncHandler(async (req, res, next) => {
+    const { teacherId, message } = req.body;
     const studentId = req.user._id;
 
     const student = await User.findById(studentId);
-    if(student.supervisor){
+    if (student.supervisor) {
         return next(new ErrorHandler("You already have a supervisor assigned", 400));
     }
 
     const supervisor = await User.findById(teacherId);
-    if(!supervisor || supervisor.role !== "Teacher"){
+    if (!supervisor || supervisor.role !== "Teacher") {
         return next(new ErrorHandler("Invalid supervisor selected", 400));
     }
 
 
-    if(supervisor.maxStudents === supervisor.assignedStudents.length){
-      return next(
-        new ErrorHandler(
-            "Selected supervisor has reached maximum student capacity", 400
-        )
-      );
+    if (supervisor.maxStudents === supervisor.assignedStudents.length) {
+        return next(
+            new ErrorHandler(
+                "Selected supervisor has reached maximum student capacity", 400
+            )
+        );
     }
 
     const requestData = {
@@ -142,5 +151,92 @@ export const requestSupervisor = asyncHandler(async ( req,res, next) => {
         "request",
         "/teacher/requests",
         "medium"
-    )
+    );
+
+    return res.status(201).json({
+        success: true,
+        data: { request },
+        message: "Supervisor request sent successfully",
+    });
+});
+
+export const getDashboardStats = asyncHandler(async (req, res, next) => {
+    const studentId = req.user._id;
+
+    const project = await Project.findOne({ student: studentId })
+        .sort({ createdAt: -1 })
+        .populate("supervisor", "name")
+        .lean();
+
+    const now = new Date();
+    const upcomingDeadlines = await Project.find({
+        student: studentId,
+        deadline: { $gte: now },
+    })
+        .select("title description")
+        .sort({ deadline: 1 })
+        .limit(3)
+        .lean();
+
+    const topNotifications = await Notification.find({ user: studentId })
+        .populate("user", "name")
+        .sort({ createdAt: -1 })
+        .limit(3)
+        .lean();
+
+    const feedbackNotifications =
+        project?.feedback && project?.feedback.length > 0
+            ? project.feedback
+                .sort((a, b) => new Date(b.createdAt))
+                .slice(0, 2)
+            : [];
+
+     const supervisorName = project?.supervisor?.name || null;
+     
+     res.status(200).json({
+        success: true,
+        message: "Dashboard stats fetched successfully",
+        data: {
+            project,
+            upcomingDeadlines,
+            topNotifications,
+            feedbackNotifications,
+            supervisorName,
+        }
+     })
+
+});
+
+export const getFeedback = asyncHandler(async (req, res, next) => {
+ const { projectId } =req.params;
+ const studentId = req.user._id;
+
+ const project = await projectServices.getProjectById(projectId);
+
+ if(!project || project.student.toString() !== studentId.toString()) {
+    return next(new ErrorHandler("Not authorized to view feedback for this project", 403));
+ }
+
+ const sortedFeedback = project.feedback.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+ res.status(200).json({
+    success: true,
+    data: { feedback: sortedFeedback },
+ });
+});
+
+export const downloadFiles = asyncHandler(async (req, res, next) => {
+    const { projectId, fileId } = req.params;
+    const studentId = req.user._id;
+
+    const project = await projectServices.getProjectById(projectId);
+    if(!project) return next(new ErrorHandler("Project not found", 404));
+    if (project.student._id.toString() !== studentId.toString()) {
+        return next(new ErrorHandler("Not authorized to download file", 403));
+    }
+    const file = project.files.id(fileId);
+    if(!file) return next(new ErrorHandler("file not found", 404));
+
+    fileServices.streamDownload(file.fileUrl, res, file.originalName);
+
 });

@@ -23,15 +23,15 @@ export const getProjectById = async(id) => {
 };
 
 export const addFilesToProject = async(projectId, files) => {
-    const project = await Project.findById(id)
+    const project = await Project.findById(projectId)
 
     if(!project){
         throw new ErrorHandler("Project not found", 404);
     }
-    const fileMetaData = files.map((files) => ({
+    const fileMetaData = files.map((file) => ({
         fileType: file.mimetype,
         fileUrl: file.path,
-        originalName: file.originalName,
+        originalName: file.originalname,
         uploadedAt: new Date(),
     }));
 
@@ -40,3 +40,8 @@ export const addFilesToProject = async(projectId, files) => {
 
     return project;
 };
+
+export const getAllProjects = async()=> {
+    const projects = await Project.find();
+    return projects;
+}
